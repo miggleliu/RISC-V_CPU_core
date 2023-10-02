@@ -6,38 +6,15 @@
    m4_include_lib(['https://raw.githubusercontent.com/stevehoover/LF-Building-a-RISC-V-CPU-Core/main/lib/risc-v_shell_lib.tlv'])
 
 
-
    //---------------------------------------------------------------------------------
-   // /====================\
-   // | Sum 1 to 9 Program |
-   // \====================/
-   //
-   // Program to test RV32I
-   // Add 1,2,3,...,9 (in that order).
-   //
-   // Regs:
-   //  x12 (a2): 10
-   //  x13 (a3): 1..10
-   //  x14 (a4): Sum
-   // 
-   m4_asm(ADDI, x14, x0, 0)             // Initialize sum register a4 with 0
-   m4_asm(ADDI, x12, x0, 1010)          // Store count of 10 in register a2.
-   m4_asm(ADDI, x13, x0, 1)             // Initialize loop count register a3 with 0
-   // Loop:
-   m4_asm(ADD, x14, x13, x14)           // Incremental summation
-   m4_asm(ADDI, x13, x13, 1)            // Increment loop count by 1
-   m4_asm(BLT, x13, x12, 1111111111000) // If a3 is less than a2, branch to label named <loop>
-   // Test result value in x14, and set x31 to reflect pass/fail.
-   m4_asm(ADDI, x30, x14, 111111010100) // Subtract expected value of 44 to set x30 to 1 if and only iff the result is 45 (1 + 2 + ... + 9).
-   m4_asm(BGE, x0, x0, 0) // Done. Jump to itself (infinite loop). (Up to 20-bit signed immediate plus implicit 0 bit (unlike JALR) provides byte address; last immediate bit should also be 0)
-   m4_asm_end()
-   m4_define(['M4_MAX_CYC'], 50)
+   m4_test_prog()
    //---------------------------------------------------------------------------------
                    
                    
 
 \SV
    m4_makerchip_module   // (Expanded in Nav-TLV pane.)
+   
    /* verilator lint_on WIDTH */
 \TLV
    
@@ -46,7 +23,7 @@
    // YOUR CODE HERE
    // PC
    $pc[31:0] = >>1$next_pc;
-   $next_pc[31:0] = $reset ? 32'b0 : 
+   $next_pc[31:0] = $reset ? 32'b0 :
                     $taken_br ? $br_tgt_pc :
                     $pc + 32'd4;
    
@@ -87,14 +64,36 @@
    
    //Decode Logic -- Instruction
    $dec_bits[10:0] = {$instr[30], $funct3, $opcode};
-   $is_beq = $dec_bits ==? 11'bx_000_1100011;
-   $is_bne = $dec_bits ==? 11'bx_001_1100011;
-   $is_blt = $dec_bits ==? 11'bx_100_1100011;
-   $is_bge = $dec_bits ==? 11'bx_101_1100011;
-   $is_bltu = $dec_bits ==? 11'bx_110_1100011;
-   $is_bgeu = $dec_bits ==? 11'bx_111_1100011;
-   $is_addi = $dec_bits ==? 11'bx_000_0010011;
-   $is_add = $dec_bits ==? 11'b0_000_0110011;
+   $is_lui =   $dec_bits ==? 11'bx_xxx_0110111;  // LOAD UPPER IMME
+   $is_auipc = $dec_bits ==? 11'bx_xxx_0010111;  // ADD UPPER IMME to PC
+   $is_jal =   $dec_bits ==? 11'bx_xxx_1101111;  // JUMP AND LINK
+   $is_jalr =  $dec_bits ==? 11'bx_000_1100111;  // JUMP AND LINK REGISTER
+   $is_beq =   $dec_bits ==? 11'bx_000_1100011;
+   $is_bne =   $dec_bits ==? 11'bx_001_1100011;
+   $is_blt =   $dec_bits ==? 11'bx_100_1100011;  // BRANCH if LESS THAN
+   $is_bge =   $dec_bits ==? 11'bx_101_1100011;  // BRANCH if GREATER/EQUAL
+   $is_bltu =  $dec_bits ==? 11'bx_110_1100011;
+   $is_bgeu =  $dec_bits ==? 11'bx_111_1100011;
+   $is_addi =  $dec_bits ==? 11'bx_000_0010011;
+   $is_slti =  $dec_bits ==? 11'bx_010_0010011;  // SET LESS THAN IMME
+   $is_sltiu = $dec_bits ==? 11'bx_011_0010011;
+   $is_xori =  $dec_bits ==? 11'bx_100_0010011;
+   $is_ori =   $dec_bits ==? 11'bx_110_0010011;
+   $is_andi =  $dec_bits ==? 11'bx_111_0010011;
+   $is_slli =  $dec_bits ==  11'b0_001_0010011;  // SHIFT LEFT LOGICAL IMME
+   $is_srli =  $dec_bits ==? 11'b0_101_0010011;
+   $is_srai =  $dec_bits ==? 11'b1_101_0010011;  // SHIFT LEFT ARITHMETIC IMME
+   $is_add =   $dec_bits ==  11'b0_000_0110011;
+   $is_sub =   $dec_bits ==  11'b1_000_0110011;
+   $is_sll =   $dec_bits ==  11'b0_001_0110011;
+   $is_slt =   $dec_bits ==  11'b0_010_0110011;  // SET LESS THAN
+   $is_sltu =  $dec_bits ==  11'b0_011_0110011;
+   $is_xor =   $dec_bits ==  11'b0_100_0110011;
+   $is_srl =   $dec_bits ==  11'b0_101_0110011;
+   $is_sra =   $dec_bits ==  11'b1_101_0110011;
+   $is_or  =   $dec_bits ==  11'b0_110_0110011;
+   $is_and =   $dec_bits ==  11'b0_111_0110011;
+   
    
    //Register File -- see m4+rf at the end of the file
    
