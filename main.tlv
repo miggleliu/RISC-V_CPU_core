@@ -33,8 +33,8 @@
    m4_asm_end()
    m4_define(['M4_MAX_CYC'], 50)
    //---------------------------------------------------------------------------------
-
-
+                   
+                   
 
 \SV
    m4_makerchip_module   // (Expanded in Nav-TLV pane.)
@@ -43,11 +43,12 @@
    
    $reset = *reset;
    
-   
    // YOUR CODE HERE
    // PC
    $pc[31:0] = >>1$next_pc;
-   $next_pc[31:0] = $reset ? 32'b0 : $pc + 32'd4;
+   $next_pc[31:0] = $reset ? 32'b0 : 
+                    $taken_br ? $br_tgt_pc :
+                    $pc + 32'd4;
    
    // IMEM
    `READONLY_MEM($pc, $$instr[31:0])
@@ -74,12 +75,12 @@
    $rs2_valid = $is_r_instr || $is_s_instr || $is_b_instr;
    $rs1_valid = $rs2_valid || $is_i_instr;
    $funct3_valid = $rs1_valid;
-   $rd_valid = $is_i_instr || $is_r_instr || $is_u_instr || $is_j_instr;
+   $rd_valid = ($is_i_instr || $is_r_instr || $is_u_instr || $is_j_instr) && $rd != 5'b0;
    $imm_valid = $is_i_instr || $is_s_instr || $is_b_instr || $is_u_instr || $is_j_instr;
       
    $imm[31:0] = $is_i_instr ? {  {21{$instr[31]}},  $instr[30:20]  } :
                 $is_s_instr ? {  {21{$instr[31]}},  $instr[30:25],  $instr[11:7]  } :
-                $is_b_instr ? {  {20{$instr[31]}},  $instr[7],  $instr[30:25],  $instr[11:8]  } :
+                $is_b_instr ? {  {20{$instr[31]}},  $instr[7],  $instr[30:25],  $instr[11:8], 1'b0  } :
                 $is_u_instr ? {  $instr[31:12],  12'b0  } :
                 $is_j_instr ? {  {12{$instr[31]}},  $instr[19:12],  $instr[20],  $instr[30:21],  1'b0  } :
                 32'b0;  // Default
@@ -95,16 +96,33 @@
    $is_addi = $dec_bits ==? 11'bx_000_0010011;
    $is_add = $dec_bits ==? 11'b0_000_0110011;
    
+   //Register File -- see m4+rf at the end of the file
+   
+   //ALU
+   $result[31:0] =
+      $is_addi ? $src1_value + $imm :
+      $is_add  ? $src1_value + $src2_value :
+               32'b0;  // Default
+   
+   //Branch Logic
+   $taken_br =
+      $is_beq ? $src1_value == $src2_value :
+      $is_bne ? $src1_value != $src2_value :
+      $is_blt ? ($src1_value < $src2_value) ^ ($src1_value[31] != $src2_value[31]) :
+      $is_bge ? ($src1_value >= $src2_value) ^ ($src1_value[31] != $src2_value[31]) :
+      $is_bltu ? $src1_value < $src2_value :
+      $is_bgeu ? $src1_value >= $src2_value :
+      1'b0;  // Default
+   $br_tgt_pc[31:0] = $pc + $imm;
    
    
-   
-   
-   `BOGUS_USE($rd $rd_valid $rs1 $rs1_valid $rs2 $rs2_valid $funct3 $funct3_valid)
+   //`BOGUS_USE($rd $rd_valid $rs1 $rs1_valid $rs2 $rs2_valid $funct3 $funct3_valid)
    // Assert these to end simulation (before Makerchip cycle limit).
-   *passed = 1'b0;
+   //*passed = 1'b0;
+   m4+tb()
    *failed = *cyc_cnt > M4_MAX_CYC;
    
-   m4+rf(32, 32, $reset, $wr_en, $wr_index[4:0], $wr_data[31:0], $rs1_valid, $rs1, $src1_value, $rs2_valid, $rs2, $src2_value)
+   m4+rf(32, 32, $reset, $rd_valid, $rd, $result, $rs1_valid, $rs1, $src1_value, $rs2_valid, $rs2, $src2_value)
    //m4+dmem(32, 32, $reset, $addr[4:0], $wr_en, $wr_data[31:0], $rd_en, $rd_data)
    m4+cpu_viz()
 \SV
