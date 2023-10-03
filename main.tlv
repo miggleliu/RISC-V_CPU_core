@@ -24,7 +24,8 @@
    // PC
    $pc[31:0] = >>1$next_pc;
    $next_pc[31:0] = $reset ? 32'b0 :
-                    $taken_br ? $br_tgt_pc :
+                    ($taken_br | $is_jal) ? $br_tgt_pc :
+                    $is_jalr ? $jalr_tgt_pc :
                     $pc + 32'd4;
    
    // IMEM
@@ -138,8 +139,10 @@
       $is_bltu ? $src1_value < $src2_value :
       $is_bgeu ? $src1_value >= $src2_value :
       1'b0;  // Default
-   $br_tgt_pc[31:0] = $pc + $imm;
+   $br_tgt_pc[31:0] = $pc + $imm;  // Branch/Jump target
    
+   //Jump Logic
+   $jalr_tgt_pc[31:0] = $src1_value + $imm;  // Register Jump target
    
    //`BOGUS_USE($rd $rd_valid $rs1 $rs1_valid $rs2 $rs2_valid $funct3 $funct3_valid)
    // Assert these to end simulation (before Makerchip cycle limit).
