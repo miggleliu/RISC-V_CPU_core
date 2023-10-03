@@ -55,7 +55,7 @@
    $funct3_valid = $rs1_valid;
    $rd_valid = ($is_i_instr || $is_r_instr || $is_u_instr || $is_j_instr) && $rd != 5'b0;
    $imm_valid = $is_i_instr || $is_s_instr || $is_b_instr || $is_u_instr || $is_j_instr;
-      
+   
    $imm[31:0] = $is_i_instr ? {  {21{$instr[31]}},  $instr[30:20]  } :
                 $is_s_instr ? {  {21{$instr[31]}},  $instr[30:25],  $instr[11:7]  } :
                 $is_b_instr ? {  {20{$instr[31]}},  $instr[7],  $instr[30:25],  $instr[11:8], 1'b0  } :
@@ -94,7 +94,7 @@
    $is_sra =   $dec_bits ==  11'b1_101_0110011;
    $is_or  =   $dec_bits ==  11'b0_110_0110011;
    $is_and =   $dec_bits ==  11'b0_111_0110011;
-   
+   $is_load =  $dec_bits ==? 11'bx_010_0000011;
    
    //Register File -- see m4+rf at the end of the file
    
@@ -108,7 +108,7 @@
       $is_andi ? $src1_value & $imm :
       $is_ori  ? $src1_value | $imm :
       $is_xori ? $src1_value ^ $imm :
-      $is_addi ? $src1_value + $imm :
+      ($is_addi || $is_load || $is_s_instr) ? $src1_value + $imm :
       $is_slli ? $src1_value << $imm[5:0] :
       $is_srli ? $src1_value >> $imm[5:0] :
       $is_and  ? $src1_value & $src2_value :
@@ -144,14 +144,17 @@
    //Jump Logic
    $jalr_tgt_pc[31:0] = $src1_value + $imm;  // Register Jump target
    
+   //Load Word
+   $rd_value[31:0] = $is_load ? $ld_data : $result;
+   
    //`BOGUS_USE($rd $rd_valid $rs1 $rs1_valid $rs2 $rs2_valid $funct3 $funct3_valid)
    // Assert these to end simulation (before Makerchip cycle limit).
    //*passed = 1'b0;
    m4+tb()
    *failed = *cyc_cnt > M4_MAX_CYC;
    
-   m4+rf(32, 32, $reset, $rd_valid, $rd, $result, $rs1_valid, $rs1, $src1_value, $rs2_valid, $rs2, $src2_value)
-   //m4+dmem(32, 32, $reset, $addr[4:0], $wr_en, $wr_data[31:0], $rd_en, $rd_data)
+   m4+rf(32, 32, $reset, $rd_valid, $rd, $rd_value, $rs1_valid, $rs1, $src1_value, $rs2_valid, $rs2, $src2_value)
+   m4+dmem(32, 32, $reset, $result[6:2], $is_s_instr, $src2_value, $is_load, $ld_data)
    m4+cpu_viz()
 \SV
    endmodule
